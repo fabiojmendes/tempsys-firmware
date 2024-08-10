@@ -1,0 +1,58 @@
+[package]
+edition = "2021"
+name = "hello-world"
+version = "0.1.0"
+authors = ["Fabio Mendes <fabiojmendes@gmail.com>"]
+resolver = "2"
+
+[[bin]]
+name = "hello-world"
+harness = false
+
+[profile.release]
+debug = true
+
+[dependencies]
+defmt = "0.3"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
+embedded-io = "0.6.1"
+embedded-io-async = "0.6.1"
+embedded-storage = "0.3.1"
+
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+
+embassy-executor = { version = "0.6.0", features = [
+  "task-arena-size-1024",
+  "arch-cortex-m",
+  "executor-thread",
+  "defmt",
+  "integrated-timers",
+  "executor-interrupt",
+] }
+embassy-sync = { version = "0.6.0" }
+embassy-time = { version = "0.3.2", features = [
+  "defmt",
+  "defmt-timestamp-uptime",
+] }
+
+embassy-nrf = { version = "0.2.0", features = [
+  "defmt",
+  "gpiote",
+  "time-driver-rtc1",
+  "nrf52840",
+] }
+
+nrf-softdevice = { version = "0.1.0", features = [
+  "defmt",
+  "ble-peripheral",
+  "critical-section-impl",
+  "s140",
+  "nrf52840",
+] }
+
+nrf-softdevice-s140 = "0.1.2"
