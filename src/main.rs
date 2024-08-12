@@ -9,6 +9,7 @@ use defmt::{info, *};
 use embassy_executor::Spawner;
 use embassy_nrf::interrupt::Priority;
 use embassy_time::Timer;
+use futures::{future, pin_mut};
 use nrf_softdevice::ble::advertisement_builder::{
     AdvertisementDataType, Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload,
 };
@@ -20,42 +21,34 @@ async fn softdevice_task(sd: &'static Softdevice) -> ! {
     sd.run().await
 }
 
-#[embassy_executor::task]
-async fn advertise(sd: &'static Softdevice) {
+async fn advertise(sd: &'static Softdevice, counter: u8) {
     let config = peripheral::Config {
-        interval: (5000.0 * 0.625) as u32,
+        // interval: 8000, // 5000ms
+        interval: 400, // 5000ms
         ..Default::default()
     };
 
-    static ADV_DATA: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+    let adv_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
         .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
         .short_name("Hello")
         .build();
 
+    let mut buff: [u8; 3] = [0xFF; 3];
+    buff[2] = counter;
+
     // but we can put it in the scan data
     // so the full name is visible once connected
-    static SCAN_DATA: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
-        .full_name("Hello, Rust!")
-        .raw(
-            AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA,
-            &[0xFF, 0xFF, 1, 2, 3, 4, 0x09, 0x10],
-        )
+    let scan_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .full_name("Hello, Rust Bare!")
+        .raw(AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA, &buff)
         .build();
 
     let adv = peripheral::NonconnectableAdvertisement::ScannableUndirected {
-        adv_data: &ADV_DATA,
-        scan_data: &SCAN_DATA,
+        adv_data: &adv_data,
+        scan_data: &scan_data,
     };
 
     unwrap!(peripheral::advertise(sd, adv, &config).await)
-}
-
-#[embassy_executor::task]
-async fn sample_task() -> ! {
-    loop {
-        info!("Running task");
-        Timer::after_millis(2000).await;
-    }
 }
 
 #[embassy_executor::main]
@@ -104,8 +97,19 @@ async fn main(spawner: Spawner) {
     };
 
     let sd = Softdevice::enable(&config);
-
     unwrap!(spawner.spawn(softdevice_task(sd)));
-    unwrap!(spawner.spawn(sample_task()));
-    unwrap!(spawner.spawn(advertise(sd)));
+
+    let mut counter = 0;
+    loop {
+        info!("Start advertising {}", counter);
+        let adv_fut = advertise(sd, counter);
+        let update_counter = async {
+            counter = counter.wrapping_add(1);
+            Timer::after_secs(30).await;
+        };
+
+        pin_mut!(adv_fut);
+        pin_mut!(update_counter);
+        future::select(adv_fut, update_counter).await;
+    }
 }

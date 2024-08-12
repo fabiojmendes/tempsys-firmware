@@ -26,6 +26,8 @@ embedded-storage = "0.3.1"
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.3"
 
+futures = { version = "0.3", default-features = false }
+
 embassy-executor = { version = "0.6.0", features = [
   "task-arena-size-1024",
   "arch-cortex-m",
