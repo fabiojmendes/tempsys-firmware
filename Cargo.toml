@@ -53,8 +53,8 @@ nrf-softdevice = { version = "0.1.0", features = [
   "defmt",
   "ble-peripheral",
   "critical-section-impl",
-  "s140",
+  "s113",
   "nrf52840",
 ] }
 
-nrf-softdevice-s140 = "0.1.2"
+nrf-softdevice-s113 = "0.1.2"
