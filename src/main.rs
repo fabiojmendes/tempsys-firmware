@@ -52,11 +52,6 @@ async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperatu
         ..Default::default()
     };
 
-    let adv_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
-        .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
-        .short_name("Tempsys")
-        .build();
-
     let data = ManufData {
         id: 0xFFFF,
         version: 0x01,
@@ -69,15 +64,14 @@ async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperatu
         slice::from_raw_parts(&data as *const _ as *const u8, mem::size_of::<ManufData>())
     };
 
-    // but we can put it in the scan data
-    // so the full name is visible once connected
-    let scan_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+    let adv_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
+        .short_name("Tempsys")
         .raw(AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA, buff)
         .build();
 
-    let adv = peripheral::NonconnectableAdvertisement::ScannableUndirected {
+    let adv = peripheral::NonconnectableAdvertisement::NonscannableUndirected {
         adv_data: &adv_data,
-        scan_data: &scan_data,
     };
 
     unwrap!(peripheral::advertise(sd, adv, &config).await)
