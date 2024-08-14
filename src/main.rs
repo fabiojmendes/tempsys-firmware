@@ -3,15 +3,15 @@
 
 use {defmt_rtt as _, embassy_nrf as _, panic_probe as _};
 
-use core::mem;
+use core::{mem, slice};
 
-use defmt::{info, *};
+use defmt::{info, unwrap};
 use embassy_executor::Spawner;
 use embassy_nrf::interrupt::Priority;
 use embassy_nrf::saadc::{self, Saadc};
 use embassy_nrf::twim::Twim;
 use embassy_nrf::{bind_interrupts, peripherals, twim};
-use embassy_time::{Duration, Timer};
+use futures::future::Either;
 use futures::{future, pin_mut};
 use nrf_softdevice::ble::advertisement_builder::{
     AdvertisementDataType, Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload,
@@ -19,27 +19,35 @@ use nrf_softdevice::ble::advertisement_builder::{
 use nrf_softdevice::ble::peripheral;
 use nrf_softdevice::{raw, Softdevice};
 
+mod temperature;
+
 static ADC_REF_VOLTAGE: i32 = 600;
 static ADC_GAIN: i32 = 6;
 static ADC_RESOLUTION: i32 = 12;
-
-const MCP9808_ADDRESS: u8 = 0x18;
-
-static SAMPLE_RATE: Duration = Duration::from_secs(30);
 
 bind_interrupts!(struct Irqs {
     SAADC => saadc::InterruptHandler;
     SPIM0_SPIS0_TWIM0_TWIS0_SPI0_TWI0 => twim::InterruptHandler<peripherals::TWISPI0>;
 });
 
+#[repr(C)]
+#[allow(dead_code)]
+struct ManufData {
+    id: u16,
+    version: u8,
+    counter: u8,
+    voltage: i16,
+    temperature: i16,
+}
+
 #[embassy_executor::task]
 async fn softdevice_task(sd: &'static Softdevice) -> ! {
     sd.run().await
 }
 
-async fn advertise(sd: &'static Softdevice, counter: u8, mv: i16, temp: i16) {
+async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperature: i16) {
     let config = peripheral::Config {
-        interval: 8000, // 5000ms
+        // interval: 8000, // 5000ms
         ..Default::default()
     };
 
@@ -48,18 +56,22 @@ async fn advertise(sd: &'static Softdevice, counter: u8, mv: i16, temp: i16) {
         .short_name("Tempsys")
         .build();
 
-    let mut buff: [u8; 8] = [0xFF; 8];
-    buff[2] = 0x01;
-    buff[3] = counter;
-    buff[4] = (mv >> 8) as u8;
-    buff[5] = (mv & 0xFF) as u8;
-    buff[6] = (temp >> 8) as u8;
-    buff[7] = (temp & 0xFF) as u8;
+    let data = ManufData {
+        id: 0xFFFF,
+        version: 0x01,
+        counter,
+        voltage,
+        temperature,
+    };
+
+    let buff = unsafe {
+        slice::from_raw_parts(&data as *const _ as *const u8, mem::size_of::<ManufData>())
+    };
 
     // but we can put it in the scan data
     // so the full name is visible once connected
     let scan_data: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
-        .raw(AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA, &buff)
+        .raw(AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA, buff)
         .build();
 
     let adv = peripheral::NonconnectableAdvertisement::ScannableUndirected {
@@ -79,6 +91,7 @@ async fn main(spawner: Spawner) {
     let mut config = embassy_nrf::config::Config::default();
     config.gpiote_interrupt_priority = Priority::P2;
     config.time_interrupt_priority = Priority::P2;
+
     let p = embassy_nrf::init(config);
 
     let config = nrf_softdevice::Config {
@@ -105,8 +118,8 @@ async fn main(spawner: Spawner) {
         }),
         gap_device_name: Some(raw::ble_gap_cfg_device_name_t {
             p_value: b"Tempsys" as *const u8 as _,
-            current_len: 9,
-            max_len: 9,
+            current_len: 7,
+            max_len: 7,
             write_perm: unsafe { mem::zeroed() },
             _bitfield_1: raw::ble_gap_cfg_device_name_t::new_bitfield_1(
                 raw::BLE_GATTS_VLOC_STACK as u8,
@@ -118,73 +131,40 @@ async fn main(spawner: Spawner) {
     let sd = Softdevice::enable(&config);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
-    let adc_config = saadc::Config::default();
-    let channel_config = saadc::ChannelConfig::single_ended(saadc::VddInput);
-    let mut saadc = Saadc::new(p.SAADC, Irqs, adc_config, [channel_config]);
-
-    saadc.calibrate().await;
-
     let mut twim_config = twim::Config::default();
     twim_config.sda_pullup = true;
     twim_config.scl_pullup = true;
+    let twi = Twim::new(p.TWISPI0, Irqs, p.P0_24, p.P0_13, twim_config);
+    unwrap!(spawner.spawn(temperature::init(twi)));
 
-    let mut twi = Twim::new(p.TWISPI0, Irqs, p.P0_24, p.P0_13, twim_config);
-    let mut buf = [0u8; 2];
-    match twi.write(MCP9808_ADDRESS, &[0x08, 0x00]).await {
-        Ok(_) => defmt::info!("Set resolution"),
-        Err(e) => defmt::error!("Error reading from sensor: {}", e),
-    }
+    let adc_config = saadc::Config::default();
+    let channel_config = saadc::ChannelConfig::single_ended(saadc::VddInput);
+    let mut saadc = Saadc::new(p.SAADC, Irqs, adc_config, [channel_config]);
+    saadc.calibrate().await;
 
     let mut counter = 0;
+    let mut temperature = temperature::read().await;
     loop {
-        // Temp Sensor
-        if let Err(e) = twi.write(MCP9808_ADDRESS, &[0x01, 0x00, 0x00]).await {
-            defmt::error!("Error reading from sensor: {}", e)
-        }
-        Timer::after_millis(45).await;
-        let temp = match twi.write_read(MCP9808_ADDRESS, &[0x05], &mut buf).await {
-            Ok(_) => {
-                // Conversion code based on the datasheet
-                // https://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf pg25
-                let [mut upper, lower] = buf;
-                upper &= 0x1f; // clear flag bits
-                let temp = if (upper & 0x10) == 0x10 {
-                    upper &= 0x0f; // clear sign bit
-                    256.0 - (upper as f32 * 16.0 + lower as f32 / 16.0)
-                } else {
-                    upper as f32 * 16f32 + lower as f32 / 16f32
-                };
-                let temp = (temp * 100.0) as i16;
-                defmt::info!("Temperature: {}", temp);
-                temp
-            }
-            Err(e) => {
-                defmt::error!("Error reading from sensor: {}", e);
-                i16::MIN
-            }
-        };
-        if let Err(e) = twi.write(MCP9808_ADDRESS, &[0x01, 0x01, 0x00]).await {
-            defmt::error!("Error reading from sensor: {}", e)
-        }
-
         // ADC
-        let mut buf = [0; 1];
-        saadc.sample(&mut buf).await;
-        let [raw] = buf;
-        let mv = (raw as i32 * ADC_REF_VOLTAGE * ADC_GAIN) >> ADC_RESOLUTION;
-        info!("Voltage: raw = {}, converted = {}", raw, mv);
+        let voltage = {
+            let mut buf = [0; 1];
+            saadc.sample(&mut buf).await;
+            let [raw] = buf;
+            // convert raw input to millivolts
+            let voltage = (raw as i32 * ADC_REF_VOLTAGE * ADC_GAIN) >> ADC_RESOLUTION;
+            info!("Voltage: raw = {}, converted = {}", raw, voltage);
+            voltage as i16
+        };
 
         info!("Start advertising {}", counter);
-        let adv_fut = advertise(sd, counter, mv as i16, temp);
-
-        let update_counter = async {
-            counter = counter.wrapping_add(1);
-            Timer::after(SAMPLE_RATE).await;
-        };
-
+        let adv_fut = advertise(sd, counter, voltage, temperature);
         pin_mut!(adv_fut);
-        pin_mut!(update_counter);
+        let temp_fut = temperature::read();
+        pin_mut!(temp_fut);
 
-        future::select(adv_fut, update_counter).await;
+        if let Either::Right((t, _)) = future::select(adv_fut, temp_fut).await {
+            temperature = t;
+        }
+        counter = counter.wrapping_add(1);
     }
 }
