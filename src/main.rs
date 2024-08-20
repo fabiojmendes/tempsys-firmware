@@ -7,7 +7,7 @@ mod voltage;
 use {defmt_rtt as _, embassy_nrf as _, panic_probe as _};
 
 use core::{mem, slice};
-use defmt::{info, unwrap};
+use defmt::unwrap;
 use embassy_executor::Spawner;
 use embassy_nrf::{
     bind_interrupts,
@@ -79,7 +79,20 @@ async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperatu
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    info!("Tempsys Start");
+    defmt::info!("Tempsys Start");
+    defmt::info!(
+        "Tempsys version {}, built for {} by {}.",
+        built_info::PKG_VERSION,
+        built_info::TARGET,
+        built_info::RUSTC_VERSION
+    );
+    if let (Some(version), Some(hash), Some(dirty)) = (
+        built_info::GIT_VERSION,
+        built_info::GIT_COMMIT_HASH_SHORT,
+        built_info::GIT_DIRTY,
+    ) {
+        defmt::info!("Git version: {} ({}) dirty: {}", version, hash, dirty);
+    }
 
     // 0 is Highest. Lower prio number can preempt higher prio number
     // Softdevice has reserved priorities 0, 1 and 4
@@ -111,7 +124,7 @@ async fn main(spawner: Spawner) {
         let voltage = voltage::read(&mut saadc).await;
         defmt::info!("Voltage: {}", voltage);
 
-        info!("Start advertising {}", counter);
+        defmt::info!("Start advertising {}", counter);
         let adv_fut = advertise(sd, counter, voltage, temperature);
         pin_mut!(adv_fut);
         let temp_fut = temperature::read();
@@ -122,4 +135,8 @@ async fn main(spawner: Spawner) {
         }
         counter = counter.wrapping_add(1);
     }
+}
+
+pub mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }

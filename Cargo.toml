@@ -1,12 +1,12 @@
 [package]
 edition = "2021"
-name = "hello-world"
+name = "tempsys-firmware"
 version = "0.1.0"
 authors = ["Fabio Mendes <fabiojmendes@gmail.com>"]
 resolver = "2"
 
 [[bin]]
-name = "hello-world"
+name = "tempsys-firmware"
 harness = false
 
 [profile.release]
@@ -58,3 +58,6 @@ nrf-softdevice = { version = "0.1.0", features = [
 ] }
 
 nrf-softdevice-s113 = "0.1.2"
+
+[build-dependencies]
+built = { version = "0.7", features = ["git2", "semver"] }
