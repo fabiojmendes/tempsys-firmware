@@ -12,5 +12,5 @@ Execute these commands using [probe-rs](https://probe.rs)
 ```shell
 probe-rs erase --chip nrf52840_xxAA
 probe-rs download --verify --binary-format hex --chip nRF52840_xxAA s113_nrf52_7.X.X_softdevice.hex
-probe-rs run --chip nrf52840 tempsys-firmware
+probe-rs run --chip nrf52840_xxAA tempsys-firmware
 ```
