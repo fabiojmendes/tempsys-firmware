@@ -11,26 +11,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust-checks:
-    name: Build
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Validate version
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        run: |
-          export CARGO_VERSION=v$(awk '/^version/ {print $3}' Cargo.toml | head -1 | tr -d '"')
-          export GIT_VERSION=${{github.ref_name}}
-          echo "$CARGO_VERSION and $GIT_VERSION"
-          if [[ "${CARGO_VERSION}" != "$GIT_VERSION" ]]; then
-            echo "Tag version and Cargo.toml version don't match" 1>&2
-            exit 1
-          fi
 
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
@@ -41,6 +27,34 @@ jobs:
       - name: Run clippy command
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
 
+  deploy:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        chip: ["nrf52840"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate version
+        run: |
+          export CARGO_VERSION=v$(awk '/^version/ {print $3}' Cargo.toml | head -1 | tr -d '"')
+          export GIT_VERSION=${{github.ref_name}}
+          echo "Cargo version: $CARGO_VERSION"
+          echo "Git version: $GIT_VERSION"
+          if [[ "${CARGO_VERSION}" != "$GIT_VERSION" ]]; then
+            echo "Tag version and Cargo.toml version don't match" 1>&2
+            exit 1
+          fi
+
+      - name: Enable caching
+        uses: Swatinem/rust-cache@v2
+
       - name: Run build command
         env:
           DEFMT_LOG: warn
@@ -48,9 +62,8 @@ jobs:
 
       - name: Publish release
         uses: ghalactic/github-release-from-tag@v5
-        if: github.ref_type == 'tag'
         with:
           generateReleaseNotes: "true"
           assets: |
             - path: target/thumbv7em-none-eabihf/release/tempsys-firmware
-              name: tempsys-firmware-${{ github.ref_name }}-nrf52840.elf
+              name: tempsys-firmware-${{ github.ref_name }}-${{ matrix.chip }}.elf
