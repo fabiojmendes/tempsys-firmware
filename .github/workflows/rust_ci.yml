@@ -33,6 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      PACKAGE_NAME: ${{github.event.repository.name}}-${{matrix.chip}}-${{github.ref_name}}
     strategy:
       matrix:
         chip: ["nrf52840"]
@@ -60,10 +62,16 @@ jobs:
           DEFMT_LOG: warn
         run: cargo build --release
 
+      - name: Package
+        run: |
+          mkdir $PACKAGE_NAME
+          cp target/thumbv7em-none-eabihf/release/tempsys-firmware ${PACKAGE_NAME}/
+          cp -r README.md LICENSE $PACKAGE_NAME/
+          tar -czvf ${PACKAGE_NAME}.tar.gz $PACKAGE_NAME
+
       - name: Publish release
         uses: ghalactic/github-release-from-tag@v5
         with:
           generateReleaseNotes: "true"
           assets: |
-            - path: target/thumbv7em-none-eabihf/release/tempsys-firmware
-              name: tempsys-firmware-${{ github.ref_name }}-${{ matrix.chip }}.elf
+            - path: ${{env.PACKAGE_NAME}}.tar.gz

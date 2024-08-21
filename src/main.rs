@@ -11,9 +11,10 @@ use defmt::unwrap;
 use embassy_executor::Spawner;
 use embassy_nrf::{
     bind_interrupts,
+    config::LfclkSource,
     interrupt::Priority,
     peripherals,
-    saadc::{self, Saadc},
+    saadc::{self, Oversample, Saadc},
     twim::{self, Twim},
 };
 use futures::{
@@ -24,6 +25,7 @@ use nrf_softdevice::ble::advertisement_builder::{
     AdvertisementDataType, Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload,
 };
 use nrf_softdevice::ble::peripheral;
+use nrf_softdevice::raw;
 use nrf_softdevice::Softdevice;
 
 bind_interrupts!(struct Irqs {
@@ -48,7 +50,7 @@ async fn softdevice_task(sd: &'static Softdevice) -> ! {
 
 async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperature: i16) {
     let config = peripheral::Config {
-        // interval: 8000, // 5000ms
+        interval: 8000, // 5000ms
         ..Default::default()
     };
 
@@ -99,10 +101,19 @@ async fn main(spawner: Spawner) {
     let mut config = embassy_nrf::config::Config::default();
     config.gpiote_interrupt_priority = Priority::P2;
     config.time_interrupt_priority = Priority::P2;
+    config.lfclk_source = LfclkSource::ExternalXtal;
 
     let p = embassy_nrf::init(config);
 
-    let config = nrf_softdevice::Config::default();
+    let config = nrf_softdevice::Config {
+        clock: Some(raw::nrf_clock_lf_cfg_t {
+            source: raw::NRF_CLOCK_LF_SRC_XTAL as u8,
+            rc_ctiv: 0,
+            rc_temp_ctiv: 0,
+            accuracy: raw::NRF_CLOCK_LF_ACCURACY_500_PPM as u8,
+        }),
+        ..Default::default()
+    };
     let sd = Softdevice::enable(&config);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
@@ -112,7 +123,8 @@ async fn main(spawner: Spawner) {
     let twi = Twim::new(p.TWISPI0, Irqs, p.P0_24, p.P0_13, twim_config);
     unwrap!(spawner.spawn(temperature::init(twi)));
 
-    let adc_config = saadc::Config::default();
+    let mut adc_config = saadc::Config::default();
+    adc_config.oversample = Oversample::OVER4X;
     let channel_config = saadc::ChannelConfig::single_ended(saadc::VddInput);
     let mut saadc = Saadc::new(p.SAADC, Irqs, adc_config, [channel_config]);
     saadc.calibrate().await;
