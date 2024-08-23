@@ -117,9 +117,7 @@ async fn main(spawner: Spawner) {
     let sd = Softdevice::enable(&config);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
-    let mut twim_config = twim::Config::default();
-    twim_config.sda_pullup = true;
-    twim_config.scl_pullup = true;
+    let twim_config = twim::Config::default();
     let twi = Twim::new(p.TWISPI0, Irqs, p.P0_24, p.P0_13, twim_config);
     unwrap!(spawner.spawn(temperature::init(twi)));
 

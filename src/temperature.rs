@@ -5,6 +5,7 @@ use embassy_time::{Duration, Timer};
 
 const MCP9808_ADDRESS: u8 = 0x18;
 static SAMPLE_RATE: Duration = Duration::from_secs(30);
+static I2C_TIMEOUT: Duration = Duration::from_millis(2000);
 
 static SHARED: Signal<ThreadModeRawMutex, i16> = Signal::new();
 
@@ -17,12 +18,12 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
     let mut set_resolution = true;
     loop {
         if set_resolution {
-            if let Err(e) = setup_temp_reader(&mut twi).await {
+            if let Err(e) = setup_temp_reader(&mut twi) {
                 defmt::error!("Error setting sensor resolution {}", e)
             } else {
                 set_resolution = false;
                 // Give some time for the sensor to begin normal operation
-                Timer::after_millis(200).await;
+                Timer::after_millis(400).await;
             }
         }
         let temperature = match read_temperature(&mut twi).await {
@@ -38,20 +39,20 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
     }
 }
 
-async fn setup_temp_reader(twi: &mut Twim<'_, impl twim::Instance>) -> Result<(), twim::Error> {
+fn setup_temp_reader(twi: &mut Twim<'_, impl twim::Instance>) -> Result<(), twim::Error> {
     defmt::info!("Set resolution");
-    twi.write(MCP9808_ADDRESS, &[0x08, 0x00]).await?;
+    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x08, 0x00], I2C_TIMEOUT)?;
     Ok(())
 }
 
 async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16, twim::Error> {
     // Temp Sensor
     // Wake up
-    twi.write(MCP9808_ADDRESS, &[0x01, 0x00, 0x00]).await?;
-    Timer::after_millis(45).await;
+    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x00, 0x00], I2C_TIMEOUT)?;
+    Timer::after_millis(50).await;
     // Read
     let mut buf = [0u8; 2];
-    twi.write_read(MCP9808_ADDRESS, &[0x05], &mut buf).await?;
+    twi.blocking_write_read_timeout(MCP9808_ADDRESS, &[0x05], &mut buf, I2C_TIMEOUT)?;
     // Conversion code based on the datasheet
     // https://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf pg25
     let [mut upper, lower] = buf;
@@ -65,6 +66,6 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
     let temp = (temp * 100.0) as i16;
     defmt::info!("Temperature: {}", temp);
     // Shutdown
-    twi.write(MCP9808_ADDRESS, &[0x01, 0x01, 0x00]).await?;
+    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x01, 0x00], I2C_TIMEOUT)?;
     Ok(temp)
 }
