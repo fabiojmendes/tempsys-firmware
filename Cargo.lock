@@ -343,7 +343,6 @@ dependencies = [
  "embassy-embedded-hal",
  "embassy-hal-internal",
  "embassy-sync 0.6.0",
- "embassy-time",
  "embassy-time-driver",
  "embassy-usb-driver",
  "embedded-hal 0.2.7",

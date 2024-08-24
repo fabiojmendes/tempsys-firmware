@@ -45,7 +45,6 @@ embassy-time = { version = "0.3.2", features = [
 embassy-nrf = { version = "0.2.0", features = [
   "defmt",
   "gpiote",
-  "time",
   "time-driver-rtc1",
   "nrf52840",
 ] }

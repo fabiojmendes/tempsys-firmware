@@ -5,7 +5,6 @@ use embassy_time::{Duration, Timer};
 
 const MCP9808_ADDRESS: u8 = 0x18;
 static SAMPLE_RATE: Duration = Duration::from_secs(30);
-static I2C_TIMEOUT: Duration = Duration::from_millis(2000);
 
 static SHARED: Signal<ThreadModeRawMutex, i16> = Signal::new();
 
@@ -18,7 +17,7 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
     let mut set_resolution = true;
     loop {
         if set_resolution {
-            if let Err(e) = setup_temp_reader(&mut twi) {
+            if let Err(e) = setup_temp_reader(&mut twi).await {
                 defmt::error!("Error setting sensor resolution {}", e)
             } else {
                 set_resolution = false;
@@ -37,20 +36,20 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
     }
 }
 
-fn setup_temp_reader(twi: &mut Twim<'_, impl twim::Instance>) -> Result<(), twim::Error> {
+async fn setup_temp_reader(twi: &mut Twim<'_, impl twim::Instance>) -> Result<(), twim::Error> {
     defmt::info!("Set resolution");
-    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x08, 0x00], I2C_TIMEOUT)?;
+    twi.write(MCP9808_ADDRESS, &[0x08, 0x00]).await?;
     Ok(())
 }
 
 async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16, twim::Error> {
     // Temp Sensor
     // Wake up
-    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x00, 0x00], I2C_TIMEOUT)?;
+    twi.write(MCP9808_ADDRESS, &[0x01, 0x00, 0x00]).await?;
     Timer::after_millis(200).await;
     // Read
     let mut buf = [0u8; 2];
-    twi.blocking_write_read_timeout(MCP9808_ADDRESS, &[0x05], &mut buf, I2C_TIMEOUT)?;
+    twi.write_read(MCP9808_ADDRESS, &[0x05], &mut buf).await?;
     // Conversion code based on the datasheet
     // https://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf pg25
     let [upper, lower] = buf;
@@ -63,7 +62,7 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
         lower
     );
     // Shutdown
-    twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x01, 0x00], I2C_TIMEOUT)?;
+    twi.write(MCP9808_ADDRESS, &[0x01, 0x01, 0x00]).await?;
     Ok(temperature)
 }
 
