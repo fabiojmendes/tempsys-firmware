@@ -22,8 +22,6 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
                 defmt::error!("Error setting sensor resolution {}", e)
             } else {
                 set_resolution = false;
-                // Give some time for the sensor to begin normal operation
-                Timer::after_millis(400).await;
             }
         }
         let temperature = match read_temperature(&mut twi).await {
@@ -49,23 +47,29 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
     // Temp Sensor
     // Wake up
     twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x00, 0x00], I2C_TIMEOUT)?;
-    Timer::after_millis(50).await;
+    Timer::after_millis(200).await;
     // Read
     let mut buf = [0u8; 2];
     twi.blocking_write_read_timeout(MCP9808_ADDRESS, &[0x05], &mut buf, I2C_TIMEOUT)?;
     // Conversion code based on the datasheet
     // https://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf pg25
-    let [mut upper, lower] = buf;
-    upper &= 0x1f; // clear flag bits
-    let temp = if (upper & 0x10) == 0x10 {
-        upper &= 0x0f; // clear sign bit
-        256.0 - (upper as f32 * 16.0 + lower as f32 / 16.0)
-    } else {
-        upper as f32 * 16f32 + lower as f32 / 16f32
-    };
-    let temp = (temp * 100.0) as i16;
-    defmt::info!("Temperature: {}", temp);
+    let [upper, lower] = buf;
+    let temp_raw = signed_12bit(upper, lower);
+    let temperature = (temp_raw as f32 / 16.0 * 100.0) as i16;
+    defmt::info!(
+        "Temperature: {} (upper: {:#02x}, lower: {:#02x})",
+        temperature,
+        upper,
+        lower
+    );
     // Shutdown
     twi.blocking_write_timeout(MCP9808_ADDRESS, &[0x01, 0x01, 0x00], I2C_TIMEOUT)?;
-    Ok(temp)
+    Ok(temperature)
+}
+
+/// Converts upper and lower u8 bytes to a signed 12 bit i16
+fn signed_12bit(upper: u8, lower: u8) -> i16 {
+    // clear any bits after bit 11 and shift;
+    let val = ((upper & 0x1f) as i16) << 8 | lower as i16;
+    (val << 4) >> 4
 }
