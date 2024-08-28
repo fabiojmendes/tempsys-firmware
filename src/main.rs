@@ -115,6 +115,8 @@ async fn main(spawner: Spawner) {
         ..Default::default()
     };
     let sd = Softdevice::enable(&config);
+    let addr = nrf_softdevice::ble::get_address(sd);
+    defmt::info!("Softdevice address: {}", addr);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
     let twim_config = twim::Config::default();
