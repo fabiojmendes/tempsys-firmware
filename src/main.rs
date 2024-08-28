@@ -132,9 +132,9 @@ async fn main(spawner: Spawner) {
     loop {
         // ADC
         let voltage = voltage::read(&mut saadc).await;
-        defmt::info!("Voltage: {}", voltage);
+        defmt::debug!("Voltage: {}", voltage);
 
-        defmt::info!("Start advertising {}", counter);
+        defmt::debug!("Start advertising {}", counter);
         let adv_fut = advertise(sd, counter, voltage, temperature);
         pin_mut!(adv_fut);
         let temp_fut = temperature::read();

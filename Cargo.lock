@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "tempsys-firmware"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "built",
  "cortex-m",

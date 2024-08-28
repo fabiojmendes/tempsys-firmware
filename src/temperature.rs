@@ -37,7 +37,7 @@ pub async fn init(mut twi: Twim<'static, impl twim::Instance>) -> ! {
 }
 
 async fn setup_temp_reader(twi: &mut Twim<'_, impl twim::Instance>) -> Result<(), twim::Error> {
-    defmt::info!("Set resolution");
+    defmt::debug!("Set resolution");
     twi.write(MCP9808_ADDRESS, &[0x08, 0x00]).await?;
     Ok(())
 }
@@ -55,7 +55,7 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
     let [upper, lower] = buf;
     let temp_raw = signed_12bit(upper, lower);
     let temperature = (temp_raw as f32 / 16.0 * 100.0) as i16;
-    defmt::info!(
+    defmt::debug!(
         "Temperature: {} (upper: {:#02x}, lower: {:#02x})",
         temperature,
         upper,
