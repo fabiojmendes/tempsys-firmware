@@ -1,10 +1,11 @@
 use embassy_nrf::twim::{self, Twim};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
+
+use crate::constants::{SAMPLE_RATE, WAKEUP_DELAY};
 
 const MCP9808_ADDRESS: u8 = 0x18;
-static SAMPLE_RATE: Duration = Duration::from_secs(30);
 
 static SHARED: Signal<ThreadModeRawMutex, i16> = Signal::new();
 
@@ -46,7 +47,7 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
     // Temp Sensor
     // Wake up
     twi.write(MCP9808_ADDRESS, &[0x01, 0x00, 0x00]).await?;
-    Timer::after_millis(200).await;
+    Timer::after(WAKEUP_DELAY).await;
     // Read
     let mut buf = [0u8; 2];
     twi.write_read(MCP9808_ADDRESS, &[0x05], &mut buf).await?;

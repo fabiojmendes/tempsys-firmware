@@ -1,11 +1,13 @@
 #![no_std]
 #![no_main]
 
+mod constants;
 mod temperature;
 mod voltage;
 
 use {defmt_rtt as _, embassy_nrf as _, panic_probe as _};
 
+use constants::ADV_INTERVAL;
 use core::{mem, slice};
 use defmt::unwrap;
 use embassy_executor::Spawner;
@@ -67,7 +69,7 @@ async fn softdevice_task(sd: &'static Softdevice) -> ! {
 
 async fn advertise(sd: &'static Softdevice, counter: u8, voltage: i16, temperature: i16) {
     let config = peripheral::Config {
-        interval: 8000, // 5000ms
+        interval: ADV_INTERVAL,
         ..Default::default()
     };
 
