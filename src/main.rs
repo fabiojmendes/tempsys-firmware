@@ -45,6 +45,23 @@ struct ManufData {
 
 #[embassy_executor::task]
 async fn softdevice_task(sd: &'static Softdevice) -> ! {
+    let sd_firmware_id = unsafe {
+        let mut sd_version = core::mem::zeroed();
+        let ret = nrf_softdevice::raw::sd_ble_version_get(&mut sd_version);
+        if ret != nrf_softdevice::raw::NRF_SUCCESS {
+            defmt::error!("Error getting softdevice version number: ({})", ret);
+            0x0000
+        } else {
+            sd_version.subversion_number
+        }
+    };
+    let mut addr = nrf_softdevice::ble::get_address(sd).bytes();
+    addr.reverse();
+    defmt::info!(
+        "softdevice Address: {:02X} firmware id: {:#04x}",
+        addr,
+        sd_firmware_id
+    );
     sd.run().await
 }
 
@@ -115,8 +132,6 @@ async fn main(spawner: Spawner) {
         ..Default::default()
     };
     let sd = Softdevice::enable(&config);
-    let addr = nrf_softdevice::ble::get_address(sd);
-    defmt::info!("Softdevice address: {}", addr);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
     let twim_config = twim::Config::default();
