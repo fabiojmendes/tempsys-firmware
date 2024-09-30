@@ -24,7 +24,7 @@ emit Bluetooth LE advertising packets that can be collected by
 - Manufacturer Id is fixed to 0xFFFF for testing purposes.
 - Version of this packet format, currently 1.
 - This counter is incremented every time the firmware performs a reading. It
-  will wrap around once it spill over.
+  will wrap around once it spills over.
 - Voltage: 16 bit unsigned value of the battery voltage in millivolts.
 - Temperature: 16 bit signed value \* 2^10 of of the temperature in Celsius.
 
