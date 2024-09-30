@@ -29,7 +29,8 @@ emit Bluetooth LE advertising packets that can be collected by
 - Temperature: 16 bit signed value \* 2^10 of of the temperature in Celsius.
 
 > [!WARNING]
-> If the temperature reading is equal to `i16::MAX` an error has occurred.
+> If the temperature reading is equal to `i16::MAX` an error has occurred and
+> this value should be discarded.
 
 ## Steps for flashing
 
