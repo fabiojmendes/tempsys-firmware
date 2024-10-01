@@ -13,9 +13,12 @@ ecosystem.
 
 The main purpose of this firmware is to interface with the MCP9808 sensor and
 emit Bluetooth LE advertising packets that can be collected by
-[tempsys-scan](https://github.com/fabiojmendes/tempsys-scan).
+[tempsys-scan](https://github.com/fabiojmendes/tempsys-scan). The MCP9808 has a
+sleep mode, which is used to limit power consumption.
 
 ## Advertising Packet Format
+
+This is the packet format for the events emitted by tempsys.
 
 | Manufacturer Id | Version | Counter | Voltage | Temperature |
 | --------------- | ------- | ------- | ------- | ----------- |
@@ -25,8 +28,9 @@ emit Bluetooth LE advertising packets that can be collected by
 - Version of this packet format, currently 1.
 - This counter is incremented every time the firmware performs a reading. It
   will wrap around once it spills over.
-- Voltage: 16 bit unsigned value of the battery voltage in millivolts.
-- Temperature: 16 bit signed value \* 2^10 of of the temperature in Celsius.
+- Voltage: 16 bit LE unsigned value of the battery voltage in millivolts.
+- Temperature: 16 bit LE signed value of the temperature in Celsius. You should
+  divide by 100 to get the actual value.
 
 > [!WARNING]
 > If the temperature reading is equal to `i16::MAX` an error has occurred and
@@ -35,7 +39,8 @@ emit Bluetooth LE advertising packets that can be collected by
 ## Steps for flashing
 
 - Download the latest release of this package
-- Download the nRF softdevice S113 from [here](https://www.nordicsemi.com/Products/Development-software/s113/download)
+- Download the nRF softdevice S113 from [here](https://www.nordicsemi.com/Products/Development-software/s113/download).
+  Tested with version `7.3.0`.
 
 Execute these commands using [probe-rs](https://probe.rs)
 

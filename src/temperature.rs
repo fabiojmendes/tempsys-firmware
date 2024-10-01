@@ -1,9 +1,11 @@
 use embassy_nrf::twim::{self, Twim};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 
-use crate::constants::{SAMPLE_RATE, WAKEUP_DELAY};
+use crate::constants::SAMPLE_RATE;
+
+const WAKEUP_DELAY: Duration = Duration::from_millis(200);
 
 const MCP9808_ADDRESS: u8 = 0x18;
 const CONFIG_REG: u8 = 0x01;
@@ -51,6 +53,10 @@ async fn read_temperature(twi: &mut Twim<'_, impl twim::Instance>) -> Result<i16
     // Wake up
     twi.write(MCP9808_ADDRESS, &[CONFIG_REG, 0x00, 0x00])
         .await?;
+    // After awake, the sensor needs some time to perform the measurement
+    // how much time depends on the resolution used.
+    // Here I found that WAKEUP_DELAY time is enough for most scenarios without
+    // compromising too much on the power usage.
     Timer::after(WAKEUP_DELAY).await;
     // Read
     let mut buf = [0u8; 2];

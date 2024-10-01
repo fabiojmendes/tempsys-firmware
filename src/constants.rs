@@ -1,7 +1,5 @@
 use embassy_time::Duration;
 
-pub static WAKEUP_DELAY: Duration = Duration::from_millis(200);
-
 // Debug timmings
 #[cfg(debug_assertions)]
 pub static SAMPLE_RATE: Duration = Duration::from_secs(1);
