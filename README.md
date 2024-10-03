@@ -41,7 +41,7 @@ This is the packet format for the events emitted by Tempsys.
 
 ## Steps for flashing
 
-- Download the latest release of this package
+- Download the latest release of this package.
 - Download the nRF softdevice S113 from
   [here](https://www.nordicsemi.com/Products/Development-software/s113/download).
   Tested with version `7.3.0`.
@@ -55,7 +55,7 @@ probe-rs download --verify --binary-format hex --chip nRF52840_xxAA s113_nrf52_7
 probe-rs run --chip nrf52840_xxAA tempsys-firmware
 ```
 
-## TODO
+## TO-DO
 
 - Migrate to postcard for serialization and return a proper Result instead of
   `i16::MAX` to denote errors.
