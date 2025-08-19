@@ -1,6 +1,6 @@
 <!-- vim: set tw=80: -->
 
-# Tempsys Firmware
+# Tempsys firmware
 
 Bluetooth LE temperature sensor using embassy-rs. This is the result of a direct
 port of a very
@@ -17,7 +17,7 @@ emit Bluetooth LE advertising packets that can be collected by
 [tempsys-scan](https://github.com/fabiojmendes/tempsys-scan). The MCP9808 has a
 sleep mode, which is used to limit power consumption.
 
-## Advertising Packet Format
+## Advertising packet format
 
 This is the packet format for the events emitted by Tempsys.
 
@@ -28,7 +28,7 @@ This is the packet format for the events emitted by Tempsys.
 - Manufacturer Id is fixed to 0xFFFF for testing purposes.
 - Version of this packet format, currently 1.
 - This counter is incremented every time the firmware performs a reading. It
-  will wrap around once it spills over.
+  wraps around once it spills over.
 - Voltage: 16 bit LE unsigned value of the battery voltage in millivolts.
 - Temperature: 16 bit LE signed value of the temperature in Celsius. You should
   divide by 100 to get the actual value.
